@@ -63,7 +63,7 @@ def makeRoc(testd, model, outputDir):
         print spath
         filelist.append(spath)
         h5File = h5py.File(spath)
-        features_val = [h5File['x0'][()], h5File['x1'][()], h5File['x2'][()], h5File['x3'][()]]
+        features_val = [h5File['x%i'%j][()] for j in range(0, h5File['x_listlength'][()][0])]
         predict_test_i = model.predict(features_val)
         if i==0:
             predict_test = predict_test_i
@@ -196,7 +196,7 @@ def makeRoc(testd, model, outputDir):
     bins = np.linspace(40,200,41)
     for wp, deepdoublebcut in reversed(sorted(deepdoublebcuts.iteritems())):
         df_passdeepdoubleb = df[df.fj_deepdoubleb > deepdoublebcut]
-        plt.hist(df_passdeepdoubleb['fj_sdmass'], bins=bins, weights = 1-df_passdeepdoubleb['fj_isH'],alpha=0.5,normed=True,label='QCD %i%% mis-tag'%(float(wp)*100.))
+        plt.hist(df_passdeepdoubleb['fj_sdmass'], bins=bins, weights = 1-df_passdeepdoubleb['fj_isH'],normed=True,histtype='step',label='QCD %i%% mis-tag'%(float(wp)*100.))
         #plt.hist(df_passdeepdoubleb['fj_sdmass'], bins=bins, weights = df_passdeepdoubleb['fj_isH'],alpha=0.5,normed=True,label='H(bb) %s'%wp)
     plt.xlabel(r'$m_{\mathrm{SD}}$')
     plt.legend(loc='upper right')
@@ -256,15 +256,16 @@ def makeRoc(testd, model, outputDir):
 
     return df, features_val
 
-#os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
-#inputDir = '../independence/example/train_all_b1024_symloss0p5/'
-inputDir = 'train_conv_full_k1_2xf32_gru_b1024/'
+#inputDir = '../independence/example/train_all_b1024_btagall1_pretrain/'
+inputDir = 'train_deep_simle_b1024_update/'
 inputModel = '%s/KERAS_check_best_model.h5'%inputDir
 outputDir = inputDir.replace('train','out') 
 
 # test data:
-inputDataCollection = '/cms-sc17/convert_20170717_ak8_deepDoubleB_db_pf_cpf_sv_test/dataCollection.dc'
+inputDataCollection = '/cms-sc17/convert_20170717_ak8_deepDoubleB_db_test/dataCollection.dc'
+#inputDataCollection = '/cms-sc17/convert_20170717_ak8_deepDoubleB_db_pf_cpf_sv_test/dataCollection.dc'
 # training data:
 #inputDataCollection = '/cms-sc17/convert_20170717_ak8_deepDoubleB_db_pf_cpf_sv_train_val/dataCollection.dc'
 
