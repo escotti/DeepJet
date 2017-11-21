@@ -29,7 +29,82 @@ def crop(start, end):
     return keras.layers.Lambda(slicer)
 
 
-def deep_model_removal_sv(inputs, num_classes,num_regclasses, **kwargs):
+def cropInputs(inputs, datasets, removedVars):
+    '''
+    Arguments
+    inputs: array of inputs, in same order as mentioned declared in datasets
+    datasets: array of string labels for inputs; "db", "sv", "pf", "cpf"
+    removedVars: array of arrays of ints, with the indices of variables to be removed in each data set, if given "-1" removes all
+
+    Returns
+    array of Lambda layers the same as input layers without removed variables
+    '''
+
+    croppedLayers = []
+    for i in range(len(datasets)):
+        inputSet = inputs[i]
+        dataset = datasets[i]
+        removals = removedVars[i]
+        if len(removals)==0:
+            croppedLayers.append(inputSet)
+        elif removals[0] == -1:
+            continue
+        else:
+            passedVars = []
+            start = 0
+            end = 0
+            if dataset is "db":
+                end = 28
+            if dataset is "sv":
+                end = 14
+            if dataset is "pf":
+                end = 10
+            if dataset is "cpf":
+                end = 30
+                            
+            for i in removals:
+                if i == start:
+                    start +=1
+                if i > start:
+                    sliced = crop(start,i)(inputSet)
+                    passedVars.append(sliced)
+                    start = i+1
+
+            sliced = crop(start,end)(inputSet)
+            passedVars.append(sliced)
+            cut_layer = keras.layers.concatenate(passedVars, axis = 2, name = 'cut_%s'%dataset )
+            croppedLayers.append(cut_layer)
+
+    return croppedLayers
+
+
+def deep_model_removals(inputs, num_classes, num_regclasses, datasets, removedVars = None, **kwargs):
+    
+    cutInputs = inputs
+
+    if removedVars is not None:
+        cutInputs = cropInputs(inputs, datasets, removedVars)
+
+    
+    flattenLayers =[]
+    for i in range(len(cutInputs)):
+        flattenLayers.append(keras.layers.Flatten()(cutInputs[i]))
+
+    concat = keras.layers.concatenate(flattenLayers,name="concat")
+
+    fc = FC(concat, 64, p=0.1, name='fc1')
+    fc = FC(fc, 32, p=0.1, name='fc2')
+    fc = FC(fc, 32, p=0.1, name='fc3')
+    output = keras.layers.Dense(num_classes, activation='softmax', name='softmax', kernel_initializer=kernel_initializer_fc)(fc)
+
+    model = keras.models.Model(inputs=inputs, outputs=output)
+
+    print model.summary()
+    return model
+
+
+
+def deep_model_removal_sv(inputs, num_classes,num_regclasses,datasets, removedVars = None, **kwargs):
 
 
 #ordering of sv variables
@@ -48,8 +123,6 @@ def deep_model_removal_sv(inputs, num_classes,num_regclasses, **kwargs):
                          #12 'sv_d3dsig',
                          #13 'sv_costhetasvpv'
     
-
-    removedVars = [0,1,5,6]
 
     input_db = inputs[0]
     input_sv = inputs[1]
