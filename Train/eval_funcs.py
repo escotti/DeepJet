@@ -28,6 +28,28 @@ import h5py
 
 sess = tf.InteractiveSession()
 
+def loadModel(inputDir,trainData,model,LoadModel,sampleDatasets=None,removedVars=None):
+    inputModel = '%s/KERAS_check_best_model.h5'%inputDir
+    inputWeights = '%s/KERAS_check_best_model_weights.h5' %inputDir
+  
+    from DataCollection import DataCollection
+
+    traind=DataCollection()
+    traind.readFromFile(trainData)
+
+    if(LoadModel):
+        evalModel = load_model(inputModel, custom_objects = global_loss_list)
+        print evalModel.summary()
+    else:
+        shapes=traind.getInputShapes()
+        train_inputs = []
+        for s in shapes:
+            train_inputs.append(keras.layers.Input(shape=s))
+        evalModel = model(train_inputs,traind.getNClassificationTargets(),traind.getNRegressionTargets(),sampleDatasets,removedVars)
+        evalModel.load_weights(inputWeights)
+
+    return evalModel
+
 def makeRoc(testd, model, outputDir):
     ## # summarize history for loss for training and test sample
     ## plt.figure(1)
@@ -294,3 +316,116 @@ def makeLossPlot(inputDir, outputDir):
     plt.ylabel('loss')
     plt.savefig("%s/loss.pdf"%outputDir)
     
+def makeComparisonPlots(testd, models,names, outputDir):
+
+
+# let's use all entries
+    NENT = 1
+    
+    print testd.nsamples
+    filelist=[]
+
+    predictions = []
+    for model in models:
+        first = True
+        for s in testd.samples:
+        #for s in range(1):
+            #spath = testd.getSamplePath(testd.samples[s])
+            spath = testd.getSamplePath(s)
+            print spath
+            filelist.append(spath)
+            h5File = h5py.File(spath)
+            features_val = [h5File['x%i'%j][()] for j in range(0, h5File['x_listlength'][()][0])]
+            predict_test_i = model.predict(features_val)
+            if first:
+                predict_test = predict_test_i
+            else:
+                predict_test = np.concatenate((predict_test,predict_test_i))
+            first= False
+        predictions.append(predict_test)
+
+    labels_val=testd.getAllLabels()[0][::NENT,:]
+                                                                                        
+    spectators_val = testd.getAllSpectators()[0][::NENT,0,:]
+    
+    dfs = []
+    for i in range(len(models)):
+        df = pd.DataFrame(spectators_val)
+        df.columns = ['fj_pt',
+                      'fj_eta',
+                      'fj_sdmass',
+                      'fj_n_sdsubjets',
+                      'fj_doubleb',
+                      'fj_tau21',
+                      'fj_tau32',
+                      'npv',
+                      'npfcands',
+                      'ntracks',
+                      'nsv']
+
+        df['fj_isH'] = labels_val[:,1]
+        df['fj_deepdoubleb'] = predictions[i][:,1]
+        
+        df = df[(df.fj_sdmass > 40) & (df.fj_sdmass < 200) & (df.fj_pt > 300) &  (df.fj_pt < 2500)]
+
+        dfs.append(df)
+
+    fprs = []
+    tprs = []
+    thresholds = []
+
+    for i in range(len(models)):
+        fpr, tpr, threshold = roc_curve(dfs[i]['fj_isH'],dfs[i]['fj_deepdoubleb'])
+        fprs.append(fpr)
+        tprs.append(tpr)
+        thresholds.append(threshold)
+
+    dfpr, dtpr, threshold1 = roc_curve(dfs[0]['fj_isH'],dfs[0]['fj_doubleb'])
+
+    def find_nearest(array,value):
+        idx = (np.abs(array-value)).argmin()
+        return idx, array[idx]
+
+    
+    
+    deepdoublebcuts = {}
+    workingPoints = [0.01, 0.05, 0.1, 0.25, 0.5] # % mistag rate
+    for wp in workingPoints:
+        deepdoublebcuts[str(wp)]=[]
+    for i in range(len(models)):
+        for wp in workingPoints: 
+            idx, val = find_nearest(fpr, wp)
+            deepdoublebcuts[str(wp)].append(threshold[idx]) # threshold for deep double-b corresponding to ~1% mistag rate
+            print('deep double-b > %f coresponds to %f%% QCD mistag rate'%(deepdoublebcuts[str(wp)][i] ,100*val))
+
+    aucs = []
+    for i in range(len(models)):
+        aucs.append(auc(fprs[i],tprs[i]))
+    
+    aucBDT = auc(dfpr, dtpr)
+
+    plt.figure()       
+    for i in range(len(models)):
+        plt.plot(tprs[i],fprs[i],label='deep double-b %s, auc = %.1f%%'% (names[i],(aucs[i]*100)))
+
+    plt.plot(dtpr,dfpr,label='BDT double-b, auc = %.1f%%'%(aucBDT*100))
+    plt.semilogy()
+    plt.xlabel("H(bb) efficiency")
+    plt.ylabel("QCD mistag rate")
+    plt.ylim(0.001,1)
+    plt.grid(True)
+    plt.legend()
+    plt.savefig(outputDir+"ROCcomparison.pdf")
+
+
+    for wp in workingPoints:
+        plt.figure()
+        bins = np.linspace(40,200,41)
+        for i in range(len(models)):
+            deepdoublebcut = deepdoublebcuts[str(wp)][i]
+            df_passdeepdoubleb = dfs[i][dfs[i].fj_deepdoubleb > deepdoublebcut]
+            plt.hist(df_passdeepdoubleb['fj_sdmass'], bins=bins, weights = 1-df_passdeepdoubleb['fj_isH'],alpha=0.5,normed=True,label='QCD %i%% mis-tag for %s'%(float(wp)*100.,names[i]))
+        #plt.hist(df_passdeepdoubleb['fj_sdmass'], bins=bins, weights = df_passdeepdoubleb['fj_isH'],alpha=0.5,normed=True,label='H(bb) %s'%wp)
+        plt.xlabel(r'$m_{\mathrm{SD}}$')
+        plt.legend(loc='upper right')
+        plt.savefig(outputDir+"msd_passdeepdoubleb%s.pdf"%(str(int(wp*100))))

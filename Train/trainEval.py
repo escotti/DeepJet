@@ -37,23 +37,34 @@ from Losses import loss_NLL
 import sys
 
 trainDataCollection='/cms-sc17/convert_20170717_ak8_deepDoubleB_db_sv_train_val/dataCollection.dc'
+sampleDatasets = ["db","sv"]
+removedVars = [[],[0,1,2,3,4,5,6,7,8,9,10,13]]
 testDataCollection = trainDataCollection.replace("train_val","test")
 
-print testDataCollection
-
-trainDir = 'train_deep_sv_removals_ptrel_erel_etarel_deltaR_pt_mass/'
+trainDir = 'train_deep_sv_removals_d3d_d3dsig_only/'
 
 #Toggle training or eval
-TrainBool = True
-EvalBool= True
+TrainBool = False
+EvalBool= False
+CompareBool = True
 
-#Toggle to load model directly or load weights
+#Toggle to load model directly (True) or load weights (False)
 LoadModel = False
 
-#select model and makeRoc
-from DeepJet_models_removals import deep_model_removal_sv as model
-from eval_funcs import makeRoc, _byteify, makeLossPlot
+#select model and eval functions
+from DeepJet_models_removals import deep_model_removals as trainingModel
+from eval_funcs import loadModel, makeRoc, _byteify, makeLossPlot, makeComparisonPlots
 
+#for Comparisons
+from DeepJet_models_removals import deep_model_removal_sv
+from DeepJet_models_ResNet import deep_model_doubleb_sv
+compModels = [trainingModel, deep_model_removal_sv, deep_model_removal_sv, deep_model_doubleb_sv]
+compNames = ["d3d+d3dsig","SV-ptrel_erel_pt_mass","SV-pt,e,etaRel_deltaR_pt_mass","SV"]
+compRemovals = (removedVars,[0,1,5,6],[0,1,3,4,5,6],[])
+compLoadModels = [LoadModel,False,False,True]
+compTrainDirs = [trainDir,"train_deep_sv_removals_ptrel_erel_pt_mass/","train_deep_sv_removals_ptrel_erel_etarel_deltaR_pt_mass/","train_deep_init_64_32_32_b1024/"]
+compareDir = "comparedROCS/"
+compDatasets = [sampleDatasets,["db","sv"],["db","sv"],["db","sv"]]
 
 
 if TrainBool:
@@ -66,13 +77,13 @@ if TrainBool:
 
     if not train.modelSet():
 
-        train.setModel(model)
+        train.setModel(trainingModel,sampleDatasets,removedVars)
     
         train.compileModel(learningrate=0.001,
                            loss=['categorical_crossentropy'],
                            metrics=['accuracy'])
     
-        model,history,callbacks = train.trainModel(nepochs=500, 
+        model,history,callbacks = train.trainModel(nepochs=300, 
                                                    batchsize=1024, 
                                                    stop_patience=1000, 
                                                    lr_factor=0.7, 
@@ -83,19 +94,11 @@ if TrainBool:
                                                    maxqsize=100)
 
 if EvalBool:
-    sess = tf.InteractiveSession()
 
-    inputModel = '%s/KERAS_check_best_model.h5'%trainDir
-    inputWeights = '%s/KERAS_check_best_model_weights.h5' %trainDir
+    evalModel = loadModel(trainDir,trainDataCollection,trainingModel,LoadModel,sampleDatasets,removedVars)
     evalDir = trainDir.replace('train','out')
     
-    from DeepJet_models_removals import deep_model_removal_sv
-    
     from DataCollection import DataCollection
-    
-    traind=DataCollection()
-    traind.readFromFile(trainDataCollection)
-    #train_data.useweights=useweights                                                                                                                                                                                                                                               
     testd=DataCollection()
     testd.readFromFile(testDataCollection)
 
@@ -103,20 +106,26 @@ if EvalBool:
         raise Exception('output directory: %s must not exists yet' %evalDir)
     else:
         os.mkdir(evalDir)
-    
-    if(LoadModel):
-        evalModel = load_model(inputModel, custom_objects = global_loss_list)
-
-    else:
-        shapes=traind.getInputShapes()
-        train_inputs = []
-        for s in shapes:
-            train_inputs.append(keras.layers.Input(shape=s))
-        evalModel = model(train_inputs,traind.getNClassificationTargets(),traind.getNRegressionTargets())
-        evalModel.load_weights(inputWeights)
-
 
     df, features_val = makeRoc(testd, evalModel, evalDir)
 
     makeLossPlot(trainDir,evalDir)
     
+if CompareBool:
+    
+    from DataCollection import DataCollection
+    testd=DataCollection()
+    testd.readFromFile(testDataCollection)
+
+    if os.path.isdir(compareDir):
+        raise Exception('output directory: %s must not exists yet' %compareDir)
+    else:
+        os.mkdir(compareDir)
+        
+
+    models = []
+    for i in range(len(compModels)):
+        curModel = loadModel(compTrainDirs[i],trainDataCollection,compModels[i],compLoadModels[i],compDatasets[i],compRemovals[i])
+        models.append(curModel)
+
+    makeComparisonPlots(testd,models,compNames,compareDir)
