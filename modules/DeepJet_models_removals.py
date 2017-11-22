@@ -52,27 +52,35 @@ def cropInputs(inputs, datasets, removedVars):
         else:
             passedVars = []
             start = 0
-            end = 0
-            if dataset is "db":
-                end = 28
-            if dataset is "sv":
-                end = 14
-            if dataset is "pf":
-                end = 10
-            if dataset is "cpf":
-                end = 30
+            end = inputSet.shape[-1]
+            print end
+            print removals
+            #if dataset is "db":
+            #    end = 28
+            #elif dataset is "sv":
+            #    end = 14
+            #elif dataset is "pf":
+            #    end = 10
+            #elif dataset is "cpf":
+            #    end = 30
                             
-            for i in removals:
-                if i == start:
+            for j in removals:
+                if j == start:
                     start +=1
-                if i > start:
-                    sliced = crop(start,i)(inputSet)
+                if j > start:
+                    sliced = crop(start,j)(inputSet)
                     passedVars.append(sliced)
-                    start = i+1
+                    start = j+1
 
             sliced = crop(start,end)(inputSet)
-            passedVars.append(sliced)
-            cut_layer = keras.layers.concatenate(passedVars, axis = 2, name = 'cut_%s'%dataset )
+            print sliced.shape
+            if sliced.shape[-1]>0:
+                passedVars.append(sliced)
+            print passedVars
+            if len(passedVars)> 1:
+                cut_layer = keras.layers.concatenate(passedVars, axis = 2, name = 'cut_%s'%dataset )
+            else:
+                cut_layer = passedVars
             croppedLayers.append(cut_layer)
 
     return croppedLayers
