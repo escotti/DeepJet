@@ -33,6 +33,7 @@ args.outputDir = 'train_deep_db_cpf_sv_removals'
 
 sampleDatasets = ["db","cpf","sv"]
 removedVars = [[],range(0,22),[0,1,2,3,4,5,6,7,8,9,10,13]]
+#removedVars = None
 
 TrainBool = True
 EvalBool= True

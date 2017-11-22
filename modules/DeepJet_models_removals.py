@@ -2,7 +2,8 @@ import keras
 import numpy as np
 import tensorflow as tf
 from keras import backend as K
-
+from operator import *
+from itertools import *
 
 kernel_initializer = 'he_normal'
 kernel_initializer_fc = 'lecun_uniform'
@@ -29,6 +30,13 @@ def crop(start, end):
     return keras.layers.Lambda(slicer)
 
 
+def groupList(listToKeep):
+    lumiGroups = []
+    for k, g in groupby(enumerate(listToKeep), lambda (i,x):i-x):
+        consecutiveLumis = map(itemgetter(1), g)
+        lumiGroups.append([consecutiveLumis[0],consecutiveLumis[-1]])
+    return lumiGroups
+
 def cropInputs(inputs, datasets, removedVars):
     '''
     Arguments
@@ -41,11 +49,11 @@ def cropInputs(inputs, datasets, removedVars):
     '''
 
     croppedLayers = []
-    for i in range(len(datasets)):
+    for i in range(len(inputs)):
         inputSet = inputs[i]
         dataset = datasets[i]
         removals = removedVars[i]
-        if len(removals)==0:
+        if len(removals) == 0:
             croppedLayers.append(inputSet)
         elif removals[0] == -1:
             continue
@@ -64,24 +72,33 @@ def cropInputs(inputs, datasets, removedVars):
             #    end = 10
             #elif dataset is "cpf":
             #    end = 30
-                            
-            for j in removals:
-                if j == start:
-                    start +=1
-                if j > start:
-                    sliced = crop(start,j)(inputSet)
-                    passedVars.append(sliced)
-                    start = j+1
-
-            sliced = crop(start,end)(inputSet)
-            print sliced.shape
-            if sliced.shape[-1]>0:
+            allVars = range(start,end)
+            setToKeep = set(allVars) - set(removals)
+            listToKeep = sorted(list(setToKeep))
+            print listToKeep
+            print groupList(listToKeep)
+            for group in groupList(listToKeep):
+                sliced = crop(group[0],group[1]+1)(inputSet)
                 passedVars.append(sliced)
-               # print passedVars
-            if len(passedVars)> 1:
-                cut_layer = keras.layers.concatenate(passedVars, axis = 2, name = 'cut_%s'%dataset )
+
+            #for j in removals:
+            #    if j == start:
+            #        start += 1
+            #    if j > start:
+            #        sliced = crop(start,j)(inputSet)
+            #        passedVars.append(sliced)
+            #        start = j+1
+            #sliced = crop(start,end)(inputSet)
+            #print sliced.shape
+            #if sliced.shape[-1]>0:
+            #    passedVars.append(sliced)
+            #    print passedVars
+
+            if len(passedVars) > 1:
+                cut_layer = keras.layers.concatenate(passedVars, axis = -1, name = 'cut_%s'%dataset )
             else:
-                cut_layer = passedVars
+                cut_layer = passedVars[0]
+            print dataset, cut_layer
             croppedLayers.append(cut_layer)
 
     return croppedLayers
@@ -94,11 +111,12 @@ def deep_model_removals(inputs, num_classes, num_regclasses, datasets, removedVa
     if removedVars is not None:
         cutInputs = cropInputs(inputs, datasets, removedVars)
 
-    
-    flattenLayers =[]
-    for i in range(len(cutInputs)):
-        flattenLayers.append(keras.layers.Flatten()(cutInputs[i]))
+    flattenLayers = [keras.layers.Flatten()(cutInput) for cutInput in cutInputs]
 
+    for cutInput in cutInputs:
+        print cutInput.shape
+    for flattenLayer in flattenLayers:
+        print flattenLayer.shape
     concat = keras.layers.concatenate(flattenLayers,name="concat")
 
     fc = FC(concat, 64, p=0.1, name='fc1')
@@ -154,7 +172,7 @@ def deep_model_removal_sv(inputs, num_classes,num_regclasses,datasets, removedVa
     passedVars.append(sliced)
     print passedVars
    
-    cut_sv = keras.layers.concatenate(passedVars, axis = 2, name = 'cut_sv')
+    cut_sv = keras.layers.concatenate(passedVars, axis = -1, name = 'cut_sv')
     
     x = keras.layers.Flatten()(input_db)
 
