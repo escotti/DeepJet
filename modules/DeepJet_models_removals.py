@@ -52,7 +52,8 @@ def cropInputs(inputs, datasets, removedVars):
         else:
             passedVars = []
             start = 0
-            end = inputSet.shape[-1]
+            end = int(inputSet.shape[-1])
+            print type(inputSet.shape[-1])
             print end
             print removals
             #if dataset is "db":
@@ -76,7 +77,7 @@ def cropInputs(inputs, datasets, removedVars):
             print sliced.shape
             if sliced.shape[-1]>0:
                 passedVars.append(sliced)
-            print passedVars
+               # print passedVars
             if len(passedVars)> 1:
                 cut_layer = keras.layers.concatenate(passedVars, axis = 2, name = 'cut_%s'%dataset )
             else:
