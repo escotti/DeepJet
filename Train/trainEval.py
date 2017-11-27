@@ -36,17 +36,22 @@ from training_base import training_base
 from Losses import loss_NLL
 import sys
 
-trainDataCollection='/cms-sc17/convert_20170717_ak8_deepDoubleB_db_sv_train_val/dataCollection.dc'
-sampleDatasets = ["db","sv"]
-removedVars = [[],[0,1,2,3,4,5,6,7,8,9,10,13]]
-testDataCollection = trainDataCollection.replace("train_val","test")
+trainDataCollection_pf_cpf_sv = '/cms-sc17/convert_20170717_ak8_deepDoubleB_db_pf_cpf_sv_train_val/dataCollection.dc'
+trainDataCollection_sv='/cms-sc17/convert_20170717_ak8_deepDoubleB_db_sv_train_val/dataCollection.dc'
 
-trainDir = 'train_deep_sv_removals_d3d_d3dsig_only/'
+testDataCollection_pf_cpf_sv = trainDataCollection_pf_cpf_sv.replace("train_val","test")
+testDataCollection_sv = trainDataCollection_sv.replace("train_val","test")
+
+sampleDatasets_pf_cpf_sv = ["db","pf","cpf","sv"]
+sampleDatasets_sv = ["db","sv"]
+
+removedVars = [[],[0,1,2,3,4,5,6,7,8,9,10,13]]
+
 
 #Toggle training or eval
-TrainBool = False
-EvalBool= False
-CompareBool = True
+TrainBool = True
+EvalBool= True
+CompareBool = False
 
 #Toggle to load model directly (True) or load weights (False)
 LoadModel = False
@@ -54,22 +59,28 @@ LoadModel = False
 #select model and eval functions
 from DeepJet_models_removals import deep_model_removals as trainingModel
 from eval_funcs import loadModel, makeRoc, _byteify, makeLossPlot, makeComparisonPlots
+trainDir = 'train_deep_sv_removals_d3d_d3dsig_loss/'
+inputTrainDataCollection = trainDataCollection_sv
+inputTestDataCollection = testDataCollection_sv
+lossFunction = loss_kldiv
+
 
 #for Comparisons
-from DeepJet_models_removals import deep_model_removal_sv
+from DeepJet_models_removals import deep_model_removal_sv, deep_model_removals
 from DeepJet_models_ResNet import deep_model_doubleb_sv
-compModels = [trainingModel, deep_model_removal_sv, deep_model_removal_sv, deep_model_doubleb_sv]
-compNames = ["d3d+d3dsig","SV-ptrel_erel_pt_mass","SV-pt,e,etaRel_deltaR_pt_mass","SV"]
-compRemovals = (removedVars,[0,1,5,6],[0,1,3,4,5,6],[])
-compLoadModels = [LoadModel,False,False,True]
-compTrainDirs = [trainDir,"train_deep_sv_removals_ptrel_erel_pt_mass/","train_deep_sv_removals_ptrel_erel_etarel_deltaR_pt_mass/","train_deep_init_64_32_32_b1024/"]
-compareDir = "comparedROCS/"
-compDatasets = [sampleDatasets,["db","sv"],["db","sv"],["db","sv"]]
-
+compModels = [trainingModel, deep_model_removals, deep_model_removal_sv, deep_model_removal_sv, deep_model_doubleb_sv]
+compNames = ["trackVars","d3d+d3dsig","SV-ptrel_erel_pt_mass","SV-pt,e,etaRel_deltaR_pt_mass","SV"]
+compRemovals = (removedVars,[[],[0,1,2,3,4,5,6,7,8,9,10,13]],[0,1,5,6],[0,1,3,4,5,6],[])
+compLoadModels = [LoadModel,False,False,False,True]
+compTrainDirs = [trainDir,'train_deep_sv_removals_d3d_d3dsig_only/',"train_deep_sv_removals_ptrel_erel_pt_mass/","train_deep_sv_removals_ptrel_erel_etarel_deltaR_pt_mass/","train_deep_init_64_32_32_b1024/"]
+compareDir = "comparedROCSTrack/"
+compDatasets = [sampleDatasets_pf_cpf_sv,["db","sv"],["db","sv"],["db","sv"],["db","sv"]]
+compTrainDataCollections = [trainDataCollection_pf_cpf_sv,trainDataCollection_sv,trainDataCollection_sv,trainDataCollection_sv,trainDataCollection_sv]
+compTestDataCollections = [testDataCollection_pf_cpf_sv, testDataCollection_sv,testDataCollection_sv,testDataCollection_sv,testDataCollection_sv]
 
 if TrainBool:
     args = MyClass()
-    args.inputDataCollection = trainDataCollection
+    args.inputDataCollection = inputTrainDataCollection
     args.outputDir = trainDir
 
     #also does all the parsing
@@ -77,10 +88,10 @@ if TrainBool:
 
     if not train.modelSet():
 
-        train.setModel(trainingModel,sampleDatasets,removedVars)
+        train.setModel(trainingModel,sampleDatasets_sv,removedVars)
     
         train.compileModel(learningrate=0.001,
-                           loss=['categorical_crossentropy'],
+                           loss=lossFunction,
                            metrics=['accuracy'])
     
         model,history,callbacks = train.trainModel(nepochs=300, 
@@ -95,12 +106,12 @@ if TrainBool:
 
 if EvalBool:
 
-    evalModel = loadModel(trainDir,trainDataCollection,trainingModel,LoadModel,sampleDatasets,removedVars)
+    evalModel = loadModel(trainDir,inputTrainDataCollection,trainingModel,LoadModel,sampleDatasets,removedVars)
     evalDir = trainDir.replace('train','out')
     
     from DataCollection import DataCollection
     testd=DataCollection()
-    testd.readFromFile(testDataCollection)
+    testd.readFromFile(inputTestDataCollection)
 
     if os.path.isdir(evalDir):
         raise Exception('output directory: %s must not exists yet' %evalDir)
@@ -114,8 +125,6 @@ if EvalBool:
 if CompareBool:
     
     from DataCollection import DataCollection
-    testd=DataCollection()
-    testd.readFromFile(testDataCollection)
 
     if os.path.isdir(compareDir):
         raise Exception('output directory: %s must not exists yet' %compareDir)
@@ -124,8 +133,12 @@ if CompareBool:
         
 
     models = []
+    testds = []
     for i in range(len(compModels)):
-        curModel = loadModel(compTrainDirs[i],trainDataCollection,compModels[i],compLoadModels[i],compDatasets[i],compRemovals[i])
+        testd=DataCollection()
+        testd.readFromFile(compTestDataCollections[i])
+        curModel = loadModel(compTrainDirs[i],compTrainDataCollections[i],compModels[i],compLoadModels[i],compDatasets[i],compRemovals[i])
         models.append(curModel)
+        testds.append(testd)
 
-    makeComparisonPlots(testd,models,compNames,compareDir)
+    makeComparisonPlots(testds,models,compNames,compareDir)
