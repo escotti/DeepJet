@@ -29,7 +29,7 @@ import sys
 
 args = MyClass()
 args.inputDataCollection = '/cms-sc17/convert_20170717_ak8_deepDoubleB_db_cpf_sv_train_val/dataCollection.dc'
-args.outputDir = 'train_deep_db_cpf_sv_removals'
+args.outputDir = 'train_conv_db_cpf_sv_removals'
 
 sampleDatasets = ["db","cpf","sv"]
 removedVars = [[],range(0,22),[0,1,2,3,4,5,6,7,8,9,10,13]]
@@ -45,7 +45,7 @@ if TrainBool:
     #also does all the parsing
 
     if not train.modelSet():
-        from DeepJet_models_removals import deep_model_removals as model
+        from DeepJet_models_removals import conv_model_removals as model
 
         train.setModel(model,sampleDatasets,removedVars)
     
