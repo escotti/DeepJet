@@ -3,12 +3,13 @@ from keras.losses import kullback_leibler_divergence, categorical_crossentropy
 import tensorflow as tf
 
 global_loss_list={}
+NBINS=40 # number of bins for loss function
 
 #whenever a new loss function is created, please add it to the global_loss_list dictionary!
 def loss_kldiv(y_in,x):
     # h is the histogram vector "one hot encoded" (40 bins in this case), techically part of the "truth" y                         
-    h = y_in[:,0:40]
-    y = y_in[:,40:]
+    h = y_in[:,0:NBINS]
+    y = y_in[:,NBINS:]
     h_all = K.dot(K.transpose(h), y)
     h_all_q = h_all[:,0]
     h_all_h = h_all[:,1]
