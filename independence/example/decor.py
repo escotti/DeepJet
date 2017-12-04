@@ -6,7 +6,7 @@ import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Input, Flatten, Dropout
 from keras.losses import kullback_leibler_divergence, categorical_crossentropy
-from Losses import *
+from Losses import * # import NBINS from Losses
 from keras import backend as K
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
@@ -26,22 +26,23 @@ def main():
 
     
     NENT = 1 # take all events
+    binWidth = (200.-40.)/NBINS
     features_val = [fval[::NENT] for fval in traind.getAllFeatures()]
     labels_val=traind.getAllLabels()[0][::NENT,:]
     spectators_val = traind.getAllSpectators()[0][::NENT,0,:]
 
     # OH will be the truth "y" input to the network
     # OH contains both, the actual truth per sample and the actual bin (one hot encoded) of the variable to be independent of
-    OH = np.zeros((labels_val.shape[0],42))
+    OH = np.zeros((labels_val.shape[0],NBINS+2))
     print labels_val.shape
     print labels_val.shape[0]
     
     for i in range(0,labels_val.shape[0]):
         # bin of a (want to be independent of a)
-        OH[i,int((spectators_val[i,2]-40.)/4.)]=1
+        OH[i,int((spectators_val[i,2]-40.)/binWidth)]=1
         # aimed truth (target) 
-        OH[i,40] = labels_val[i,0]
-        OH[i,41] = labels_val[i,1]
+        OH[i,NBINS] = labels_val[i,0]
+        OH[i,NBINS+1] = labels_val[i,1]
 
     # make a simple model:
     from DeepJet_models_removals import conv_model_removals
