@@ -9,17 +9,17 @@ Setup (CERN)
 It is essential to perform all these steps on lxplus7. Simple ssh to 'lxplus7' instead of 'lxplus'
 
 Pre-Installtion: Anaconda setup (only once)
-Download miniconda3
+Download miniconda2
 ```
 cd <afs work directory: you need some disk space for this!>
-wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
+wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh
+bash Miniconda2-latest-Linux-x86_64.sh
 ```
 Please follow the installation process. If you don't know what an option does, please answer 'yes'.
 After installation, you have to log out and log in again for changes to take effect.
 If you don't use bash, you might have to add the conda path to your .rc file
 ```
-export PATH="<your miniconda directory>/miniconda3/bin:$PATH"
+export PATH="<your miniconda directory>/miniconda2/bin:$PATH"
 ```
 This has to be only done once.
 
@@ -58,31 +58,6 @@ cd <your working dir>/DeepJet/environment
 source lxplus_env.sh / gpu_env.sh
 ```
 
-
-The preparation for the training consists of the following steps
-====
-
-- define the data structure for the training (example in modules/TrainData_template.py)
-  for simplicity, copy the file to TrainData_template.py and adjust it. 
-  Define a new class name (e.g. TrainData_template), leave the inheritance untouched
-  
-- register this class in DeepJet/convertFromRoot/convertFromRoot.py by 
-  a) importing it (the line in the code is indiacted by a comment)
-  b) adding it to the class list below
-
-- convert the root file to the data strucure for training:
-  ```
-  cd DeepJet/convertFromRoot
-  ./convertFromRoot.py -i /path/to/the/root/ntuple/list_of_root_files.txt -o /output/path/that/needs/some/disk/space -c TrainData_myclass
-  ```
-  
-  This step can take a while.
-
-
-- prepare the training file and the model. Please refer to DeepJet/Train/XXX_template.reference.py
-  
-
-
 Training
 ====
 
@@ -104,31 +79,16 @@ screen -r
 
 Please close the session when the training is finished
 
-the training is launched in the following way:
-```
-python train_template.py /path/to/the/output/of/convert/dataCollection.dc <output dir of your choice>
-```
 
+open Train/trainEval.py in your favorite text editor.  The top section of the file contains the relevant variables to be changed.
+Input Data
+Model to be used
+Options to only run the training or only run the evaluation or run both
+Etc.
 
-Evaluation
-====
-
-After the training has finished, the performance can be evaluated.
-The evaluation consists of a few steps:
-
-1) converting the test data
+The training is launched in the following way:
 ```
-cd DeepJet/convertFromRoot
-./convertFromRoot.py --testdatafor <output dir of training>/trainsamples.dc -i /path/to/the/root/ntuple/list_of_test_root_files.txt -o /output/path/for/test/data
-```
+python trainEval.py```
 
-2) applying the trained model to the test data
-```
-predict.py <output dir of training>/KERAS_model.py  /output/path/for/test/data/dataCollection.dc <output directory>
-```
-This creates output trees. and a tree_association.txt file that is input to the plotting tools
-
-There is a set of plotting tools with examples in 
-DeepJet/Train/Plotting
 
 
