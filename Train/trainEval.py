@@ -20,6 +20,7 @@ from sklearn.metrics import roc_curve, auc
 from root_numpy import array2root
 import pandas as pd
 import h5py
+from eval_funcs import loadModel, makeRoc, _byteify, makeLossPlot
 
 #keras.backend.set_image_data_format('channels_last')
 
@@ -36,6 +37,9 @@ from training_base import training_base
 from Losses import loss_NLL
 import sys
 
+'''
+Data Sets
+'''
 trainDataCollection_cpf_sv = '/afs/cern.ch/work/e/erscotti/Data/convert_20170717_ak8_deepDoubleB_db_cpf_sv_train_val/dataCollection.dc'
 trainDataCollection_sv='/afs/cern.ch/work/e/erscotti/Data/convert_20170717_ak8_deepDoubleB_db_sv_train_val/dataCollection.dc'
 trainDataCollection_db='/afs/cern.ch/work/e/erscotti/Data/convert_20170717_ak8_deepDoubleB_db_train_val/dataCollection.dc'
@@ -49,24 +53,32 @@ sampleDatasets_sv = ["db","sv"]
 sampleDatasets_db = ["db"]
 
 
-#removedVars = [[],[-1],[0,1,2,3,4,5,6,7,8,9,10,13]]
-removedVars = None
-inputDatasets = sampleDatasets_db
+'''
+Settings Variables
+'''
 
-#Toggle training or eval
-TrainBool = False
+#removed variables from each variable set.
+removedVars = None
+
+#Toggle training and eval
+TrainBool = True
 EvalBool= True
 
 #Toggle to load model directly (True) or load weights (False)
-LoadModel = False
+LoadModel = False # false should always work, true is faster but can't be used with Lambda Layers (removals)
 
-#select model and eval functions
+#select model
 from DeepJet_models_removals import deep_model_removals as trainingModel
-from eval_funcs import loadModel, makeRoc, _byteify, makeLossPlot, makeComparisonPlots
+
+#select DataColletions train and test data should have the same sets of variables (ie. db, or db+sv)
+inputDatasets = sampleDatasets_db
 inputTrainDataCollection = trainDataCollection_db
 inputTestDataCollection = testDataCollection_db
+
+#choose loss function;  standard is categorical_crossentropy
 lossFunction = 'categorical_crossentropy'
 
+#choose output directory
 trainDir = 'train_testing/'
 
 if TrainBool:
@@ -96,8 +108,12 @@ if TrainBool:
                                                    maxqsize=100)
 
 if EvalBool:
-
-    evalModel = loadModel(trainDir,inputTrainDataCollection,trainingModel,LoadModel,inputDatasets,removedVars)
+	
+	if TrainBool:
+		evalModel = model
+	else:
+		evalModel = loadModel(trainDir,inputTrainDataCollection,trainingModel,LoadModel,inputDatasets,removedVars)
+    
     evalDir = trainDir.replace('train','out')
     
     from DataCollection import DataCollection
